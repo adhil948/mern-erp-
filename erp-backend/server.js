@@ -3,14 +3,17 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const admin = require('firebase-admin');
+
+// Routes (ensure filenames match actual case on disk)
 const authRoutes = require('./routes/auth');
-const orgRoutes = require('./routes/org');
-const salesRoutes = require('./routes/Sales');
-const productRoutes = require('./routes/Products');
+const orgRoutes = require('./routes/org');        // or './routes/Org' if that’s the real filename
+const salesRoutes = require('./routes/Sales');    // lowercase recommended
+const productRoutes = require('./routes/products');
+const crmRoutes = require('./routes/crm');
 
+const authenticateFirebaseToken = require('./middleware/auth');
 
-
-// Initialize Firebase admin with service account from environment variables
+// Firebase Admin init
 admin.initializeApp({
   credential: admin.credential.cert({
     projectId: process.env.FIREBASE_PROJECT_ID,
@@ -23,23 +26,22 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Public auth routes (use “light” verify inside routes/auth.js)
 app.use('/api/auth', authRoutes);
-app.use('/api/orgs', orgRoutes);
-app.use('/api/sales', salesRoutes);
-app.use('/api/products', productRoutes);
 
-// Connect to MongoDB
-mongoose.connect(process.env.MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
+// Protected org-scoped routes: require active org via full middleware
+app.use('/api/products', authenticateFirebaseToken, productRoutes);
+app.use('/api/sales', authenticateFirebaseToken, salesRoutes);
+app.use('/api/orgs', authenticateFirebaseToken, orgRoutes);
+app.use('/api/crm', authenticateFirebaseToken, crmRoutes);
+
+app.get('/', (req, res) => res.send('ERP Backend Running'));
+
+// Mongo connection (works for replica set or standalone)
+// Ensure your mongod is running and rs.initiate done if using transactions
+mongoose.connect(process.env.MONGO_URI, {})
   .then(() => console.log('MongoDB connected'))
   .catch((err) => console.log('MongoDB connection error:', err));
 
-// Start Express server
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
-
-// Root Route
-app.get('/', (req, res) => {
-  res.send('ERP Backend Running');
-});
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
