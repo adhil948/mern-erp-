@@ -17,7 +17,7 @@ import RoleManagement from './pages/RoleManagement';
 import ChooseOrg from './pages/ChooseOrg'; 
 
 import SalesPage from './pages/SalesPage';
-import PurchasePage from './pages/PurchasePage';
+import PurchasePage from './pages/PurchasesPage';
 import InventoryPage from './pages/InventoryPage';
 import CrmCustomersPage from './pages/CrmCustomersPage';
 

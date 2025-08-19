@@ -20,6 +20,7 @@ function appReducer(state, action) {
         user: action.payload.user,
         token: action.payload.token,
         activeOrgId: action.payload.activeOrgId,
+        orgName: action.payload.activeOrgId.orgName || null,
         role: action.payload.role,
         enabledModules: action.payload.enabledModules,
         needsOrgSelection: action.payload.needsOrgSelection,

@@ -10,6 +10,8 @@ const orgRoutes = require('./routes/org');        // or './routes/Org' if thatâ€
 const salesRoutes = require('./routes/Sales');    // lowercase recommended
 const productRoutes = require('./routes/products');
 const crmRoutes = require('./routes/crm');
+const purchaseRoutes = require('./routes/purchase'); // Ensure this is the correct path
+const supplierRoutes = require('./routes/suppliers'); 
 
 const authenticateFirebaseToken = require('./middleware/auth');
 
@@ -34,8 +36,12 @@ app.use('/api/products', authenticateFirebaseToken, productRoutes);
 app.use('/api/sales', authenticateFirebaseToken, salesRoutes);
 app.use('/api/orgs', authenticateFirebaseToken, orgRoutes);
 app.use('/api/crm', authenticateFirebaseToken, crmRoutes);
+app.use('/api/purchases', authenticateFirebaseToken, purchaseRoutes);
+app.use('/api/suppliers', authenticateFirebaseToken, supplierRoutes);
 
 app.get('/', (req, res) => res.send('ERP Backend Running'));
+app.get('/api/__health', (req,res) => res.json({ ok: true, routes: ['purchases','suppliers'] }));
+
 
 // Mongo connection (works for replica set or standalone)
 // Ensure your mongod is running and rs.initiate done if using transactions
