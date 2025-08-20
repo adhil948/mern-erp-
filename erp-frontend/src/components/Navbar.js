@@ -19,7 +19,9 @@ import { signOut } from 'firebase/auth';
 import { Link, useNavigate } from 'react-router-dom';
 
 export default function Navbar() {
-  const { user, enabledModules, role } = useAppState(); // now also pulling role
+
+
+  const { user, enabledModules, role,activeOrgId } = useAppState(); // now also pulling role
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
 
@@ -34,6 +36,8 @@ export default function Navbar() {
   const toggleDrawer = (open) => () => {
     setDrawerOpen(open);
   };
+
+  
 
   // Links for enabled modules
   const moduleLinks = [
@@ -73,6 +77,14 @@ export default function Navbar() {
             >
               <ListItemText primary="Role Management" />
             </ListItem>
+            <Divider sx={{ my: 1 }} />
+            <ListItem
+              button
+              component={Link}
+              to="/settings/company"
+            >
+              <ListItemText primary="Company Details" />
+            </ListItem>
           </>
         )}
       </List>
@@ -81,7 +93,7 @@ export default function Navbar() {
 
   return (
     <>
-      <AppBar position="static" sx={{ marginBottom: 2 }}>
+      <AppBar className='no-print' position="static" sx={{ marginBottom: 2 }}>
         <Toolbar>
           {/* Sidebar menu toggle button */}
           <IconButton

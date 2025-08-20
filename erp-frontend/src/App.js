@@ -14,12 +14,15 @@ import Dashboard from './pages/Dashboard';
 
 
 import RoleManagement from './pages/RoleManagement';
+import CompanyProfilePage from './pages/CompanyProfile';
 import ChooseOrg from './pages/ChooseOrg'; 
 
 import SalesPage from './pages/SalesPage';
 import PurchasePage from './pages/PurchasesPage';
 import InventoryPage from './pages/InventoryPage';
 import CrmCustomersPage from './pages/CrmCustomersPage';
+import SalesInvoicePrint from './pages/print/SaleInvoicePrint';
+import CashBillPrint from './pages/print/CashBillPrint';  
 
 import { signOut } from "firebase/auth";
 import { AppBar } from '@mui/material';
@@ -140,6 +143,9 @@ if (needsOrgSelection || !activeOrgId) {
       <Navbar/>
       <Routes>
         <Route path="/" element={<Dashboard />} />
+        <Route path="/sales/:id/print" element={<SalesInvoicePrint />} />
+
+        <Route path="/cash-bills/:id/print" element={<CashBillPrint />} />
 
         <Route
           path="/sales"
@@ -169,6 +175,7 @@ if (needsOrgSelection || !activeOrgId) {
         />
 
         {role === 'admin' && <Route path="/roles" element={<RoleManagement orgId={activeOrgId} />} />}
+        {role === 'admin' && <Route path="/settings/company" element={<CompanyProfilePage />} />}
 
         <Route
           path="/inventory"

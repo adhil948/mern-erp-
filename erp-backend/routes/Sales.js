@@ -5,6 +5,7 @@ const router = express.Router();
 const Sale = require('../models/Sale');
 const Product = require('../models/Product');
 const CrmCustomer = require('../models/CrmCustomer'); // NEW: to validate customer ownership
+const CompanyProfile = require('../models/CompanyProfile');
 const { adjustStockBulk } = require('../utils/stock');
 const auth = require('../middleware/auth');
 
@@ -67,15 +68,35 @@ router.post('/', auth, async (req, res) => {
     await ensureProductsBelongToOrg(req.user.orgId, items, session);
     await ensureCustomerBelongsToOrg(req.user.orgId, customerId, session);
 
-    const [sale] = await Sale.create([{
-      orgId: req.user.orgId,
-      date: date ? new Date(date) : new Date(),
-      customerId: customerId || undefined,   // store relation if provided
-      customer: customer?.trim() || undefined, // optional display/legacy
-      items,
-      total,
-      createdBy: req.user._id
-    }], { session });
+
+    // Generate invoice number (requires company profile)
+  const profile = await CompanyProfile.findOne({ orgId: req.user.orgId }).session(session).exec();
+  if (!profile) {
+    await session.abortTransaction();
+    return res.status(400).json({ error: 'Company profile not set. Please complete Company Profile to generate invoice numbers.' });
+  }
+
+  const prefix = profile.invoice?.prefix || 'INV-';
+  const nextNo = profile.invoice?.nextNumber || 1;
+  // Optional zero-padding: 4 digits (0001)
+  const invoiceNo = `${prefix}${String(nextNo).padStart(4, '0')}`;
+
+  // Increment sequence
+  profile.invoice.nextNumber = nextNo + 1;
+  await profile.save({ session });
+
+  const [sale] = await Sale.create([{
+    orgId: req.user.orgId,
+    date: date ? new Date(date) : new Date(),
+    invoiceNo,
+    customerId: customerId || undefined,
+    customer: customer?.trim() || undefined,
+    items,
+    total,
+    createdBy: req.user._id,
+    paymentsTotal: 0,
+    paymentStatus: 'unpaid'
+  }], { session });
 
     // Decrement stock
     const ops = items.map(i => ({ productId: i.productId, diff: -Math.abs(i.quantity) }));
