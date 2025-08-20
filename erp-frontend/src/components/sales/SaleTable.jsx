@@ -1,4 +1,40 @@
-import React from "react";
+import { useState } from "react";
+import {
+  Box,
+  Table,
+  styled,
+  TableRow,
+  TableBody,
+  TableCell,
+  TableHead,
+  IconButton,
+  TablePagination,
+  Chip,
+  CircularProgress,
+  Menu,
+  MenuItem,
+  ListItemIcon,
+  ListItemText
+} from "@mui/material";
+
+import MoreVertIcon from "@mui/icons-material/MoreVert";
+import VisibilityIcon from "@mui/icons-material/Visibility";
+import EditIcon from "@mui/icons-material/Edit";
+import DeleteIcon from "@mui/icons-material/Delete";
+import PrintIcon from "@mui/icons-material/Print";
+import AddCircleIcon from "@mui/icons-material/AddCircle";
+import PaymentsIcon from "@mui/icons-material/Payments";
+
+// STYLED COMPONENT
+const StyledTable = styled(Table)(() => ({
+  whiteSpace: "pre",
+  "& thead": {
+    "& tr": { "& th": { paddingLeft: 8, paddingRight: 8 } }
+  },
+  "& tbody": {
+    "& tr": { "& td": { paddingLeft: 8, textTransform: "capitalize" } }
+  }
+}));
 
 function currencyINR(n) {
   const x = Number(n || 0);
@@ -6,105 +42,223 @@ function currencyINR(n) {
 }
 
 function getCustomerDisplay(sale) {
-  // Prefer populated customer object -> name/email
   const cid = sale?.customerId;
-  if (cid && typeof cid === 'object') {
-    return cid.name || cid.email || '(customer)';
+  if (cid && typeof cid === "object") {
+    return cid.name || cid.email || "(customer)";
   }
-  // If only id or missing, fallback to string field or placeholder
-  if (typeof cid === 'string' && cid.length) return '(customer)';
-  return sale?.customer || '(customer)';
+  if (typeof cid === "string" && cid.length) return "(customer)";
+  return sale?.customer || "(customer)";
+}
+
+function statusColor(status) {
+  switch (status) {
+    case "paid":
+      return "success";
+    case "partial":
+      return "warning";
+    case "unpaid":
+    default:
+      return "default";
+  }
 }
 
 export default function SaleTable({
-  sales,
+  sales = [],
   loading = false,
   onView,
   onEdit,
   onDelete,
   onPrintInvoice,
   onAddPayment,
-  onViewPayments,
+  onViewPayments
 }) {
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(5);
+
+  // Menu state
+  const [anchorEl, setAnchorEl] = useState(null);
+  const [selectedSale, setSelectedSale] = useState(null);
+  const open = Boolean(anchorEl);
+
+  const handleMenuOpen = (event, sale) => {
+    setAnchorEl(event.currentTarget);
+    setSelectedSale(sale);
+  };
+
+  const handleMenuClose = () => {
+    setAnchorEl(null);
+    setSelectedSale(null);
+  };
+
+  const handleChangePage = (_, newPage) => setPage(newPage);
+  const handleChangeRowsPerPage = (e) => {
+    setRowsPerPage(+e.target.value);
+    setPage(0);
+  };
+
   return (
-    <div style={{ overflowX: 'auto', opacity: loading ? 0.6 : 1 }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-        <thead>
-          <tr>
-            <th style={th}>Date</th>
-            <th style={th}>Invoice #</th>
-            <th style={th}>Customer</th>
-            <th style={th}>Total</th>
-            <th style={th}>Paid</th>
-            <th style={th}>Status</th>
-            <th style={th}>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {sales?.map((sale) => {
-            const dateStr = sale?.date ? new Date(sale.date).toLocaleDateString() : '-';
-            const invoiceNo = sale?.invoiceNo || '(pending)';
-            const customer = getCustomerDisplay(sale);
-            const total = currencyINR(sale?.total);
-            const paid = currencyINR(sale?.paymentsTotal || 0);
-            const status = (sale?.paymentStatus || 'unpaid').toUpperCase();
+    <Box width="100%" overflow="auto">
+      {loading && (
+        <Box display="flex" justifyContent="center" p={2}>
+          <CircularProgress size={28} />
+        </Box>
+      )}
 
-            return (
-              <tr key={sale?._id}>
-                <td style={td}>{dateStr}</td>
-                <td style={td}>{invoiceNo}</td>
-                <td style={td}>{customer}</td>
-                <td style={td}>{total}</td>
-                <td style={td}>{paid}</td>
-                <td style={td}>
-                  <span style={{ ...badge, background: statusColor(sale?.paymentStatus) }}>
-                    {status}
-                  </span>
-                </td>
-                <td style={td}>
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                    <button onClick={() => onView?.(sale)}>View</button>
-                    <button onClick={() => onEdit?.(sale)}>Edit</button>
-                    <button
-                      onClick={() => {
-                        if (!sale?._id) return;
-                        if (window.confirm('Delete this sale? This will restore stock.')) {
-                          onDelete?.(sale._id);
-                        }
-                      }}
-                      style={{ color: '#e53935' }}
-                    >
-                      Delete
-                    </button>
-                    <button onClick={() => onPrintInvoice?.(sale)}>Print Invoice</button>
-                    <button onClick={() => onAddPayment?.(sale)}>Add Payment</button>
-                    <button onClick={() => onViewPayments?.(sale)}>View Payments</button>
-                  </div>
-                </td>
-              </tr>
-            );
-          })}
-          {(!sales || sales.length === 0) && (
-            <tr>
-              <td style={td} colSpan={7}>No sales found</td>
-            </tr>
+      <StyledTable>
+        <TableHead>
+          <TableRow>
+            <TableCell>Date</TableCell>
+            <TableCell>Invoice #</TableCell>
+            <TableCell>Customer</TableCell>
+            <TableCell align="right">Total</TableCell>
+            <TableCell align="right">Paid</TableCell>
+            <TableCell>Status</TableCell>
+            <TableCell align="center">Actions</TableCell>
+          </TableRow>
+        </TableHead>
+
+        <TableBody>
+          {sales.length > 0 ? (
+            sales
+              .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
+              .map((sale) => {
+                const dateStr = sale?.date
+                  ? new Date(sale.date).toLocaleDateString()
+                  : "-";
+                const invoiceNo = sale?.invoiceNo || "(pending)";
+                const customer = getCustomerDisplay(sale);
+                const total = currencyINR(sale?.total);
+                const paid = currencyINR(sale?.paymentsTotal || 0);
+                const status = (sale?.paymentStatus || "unpaid").toLowerCase();
+
+                return (
+                  <TableRow key={sale?._id}>
+                    <TableCell>{dateStr}</TableCell>
+                    <TableCell>{invoiceNo}</TableCell>
+                    <TableCell>{customer}</TableCell>
+                    <TableCell align="right">{total}</TableCell>
+                    <TableCell align="right">{paid}</TableCell>
+                    <TableCell>
+                      <Chip
+                        label={status.toUpperCase()}
+                        color={statusColor(status)}
+                        size="small"
+                      />
+                    </TableCell>
+                    <TableCell align="center">
+                      <IconButton onClick={(e) => handleMenuOpen(e, sale)}>
+                        <MoreVertIcon />
+                      </IconButton>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
+          ) : (
+            <TableRow>
+              <TableCell colSpan={7} align="center">
+                No sales found
+              </TableCell>
+            </TableRow>
           )}
-        </tbody>
-      </table>
-    </div>
+        </TableBody>
+      </StyledTable>
+
+      {/* Dropdown menu */}
+      <Menu
+        anchorEl={anchorEl}
+        open={open}
+        onClose={handleMenuClose}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+        transformOrigin={{ vertical: "top", horizontal: "right" }}
+      >
+        <MenuItem
+          onClick={() => {
+            onView?.(selectedSale);
+            handleMenuClose();
+          }}
+        >
+          <ListItemIcon>
+            <VisibilityIcon color="primary" />
+          </ListItemIcon>
+          <ListItemText>View</ListItemText>
+        </MenuItem>
+
+        <MenuItem
+          onClick={() => {
+            onEdit?.(selectedSale);
+            handleMenuClose();
+          }}
+        >
+          <ListItemIcon>
+            <EditIcon color="info" />
+          </ListItemIcon>
+          <ListItemText>Edit</ListItemText>
+        </MenuItem>
+
+        <MenuItem
+          onClick={() => {
+            if (
+              selectedSale?._id &&
+              window.confirm("Delete this sale? This will restore stock.")
+            ) {
+              onDelete?.(selectedSale._id);
+            }
+            handleMenuClose();
+          }}
+        >
+          <ListItemIcon>
+            <DeleteIcon color="error" />
+          </ListItemIcon>
+          <ListItemText>Delete</ListItemText>
+        </MenuItem>
+
+        <MenuItem
+          onClick={() => {
+            onPrintInvoice?.(selectedSale);
+            handleMenuClose();
+          }}
+        >
+          <ListItemIcon>
+            <PrintIcon />
+          </ListItemIcon>
+          <ListItemText>Print Invoice</ListItemText>
+        </MenuItem>
+
+        <MenuItem
+          onClick={() => {
+            onAddPayment?.(selectedSale);
+            handleMenuClose();
+          }}
+        >
+          <ListItemIcon>
+            <AddCircleIcon />
+          </ListItemIcon>
+          <ListItemText>Add Payment</ListItemText>
+        </MenuItem>
+
+        <MenuItem
+          onClick={() => {
+            onViewPayments?.(selectedSale);
+            handleMenuClose();
+          }}
+        >
+          <ListItemIcon>
+            <PaymentsIcon />
+          </ListItemIcon>
+          <ListItemText>View Payments</ListItemText>
+        </MenuItem>
+      </Menu>
+
+      <TablePagination
+        sx={{ px: 2 }}
+        page={page}
+        component="div"
+        rowsPerPage={rowsPerPage}
+        count={sales.length}
+        onPageChange={handleChangePage}
+        rowsPerPageOptions={[5, 10, 25]}
+        onRowsPerPageChange={handleChangeRowsPerPage}
+      />
+    </Box>
   );
-}
-
-const th = { textAlign: 'left', padding: '8px 6px', borderBottom: '1px solid #eee', whiteSpace: 'nowrap' };
-const td = { padding: '8px 6px', borderBottom: '1px solid #f4f4f4', verticalAlign: 'middle' };
-const badge = { color: '#fff', padding: '2px 8px', borderRadius: 6, fontSize: 12, display: 'inline-block' };
-
-function statusColor(s) {
-  switch (s) {
-    case 'paid': return '#2e7d32';
-    case 'partial': return '#ef6c00';
-    case 'unpaid':
-    default:
-      return '#616161';
-  }
 }
