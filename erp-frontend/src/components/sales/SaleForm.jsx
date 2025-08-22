@@ -1,59 +1,141 @@
-// SaleForm.jsx
-
 import React, { useState, useEffect } from "react";
 import { useApi } from "../../api";
 import ProductSelect from "../common/ProductSelect";
 import CustomerSelect from "../crm/CustomerSelect";
 
-function SaleForm({ onSaleAdded }) {
-  const api = useApi(); // use shared API (adds Authorization + X-Org-Id)
+function SaleForm({ onSaleAdded, initial = null }) {
+  const api = useApi();
 
   const [customerId, setCustomerId] = useState("");
-  const [customer, setCustomer] = useState(""); // optional free-text if you still want it
-  const [items, setItems] = useState([{ productId: "", quantity: 1, price: 0 }]);
+  const [customer, setCustomer] = useState("");
+  const [items, setItems] = useState([
+    { product: null, productId: "", quantity: 1, price: 0 }
+  ]);
+
+  // new: discount + totals
+  const [subTotal, setSubTotal] = useState(0);
+  const [discount, setDiscount] = useState(0);
   const [total, setTotal] = useState(0);
+
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
-  // Recalculate total
+  // Prefill when editing
   useEffect(() => {
-    const newTotal = items.reduce((acc, item) => acc + (Number(item.price) || 0) * (Number(item.quantity) || 0), 0);
-    setTotal(newTotal);
-  }, [items]);
+    if (!initial) {
+      // reset for create
+      setCustomerId("");
+      setCustomer("");
+      setItems([{ product: null, productId: "", quantity: 1, price: 0 }]);
+      setDiscount(0);
+      return;
+    }
+
+    // customerId can be string or populated object
+    setCustomerId(
+      typeof initial.customerId === "object" ? initial.customerId._id : (initial.customerId || "")
+    );
+    setCustomer(initial.customer || "");
+
+    const mapped = (initial.items || []).map((it) => {
+      const productObj =
+        (typeof it.productId === "object" && it.productId) ||
+        it.product ||
+        null;
+      const pid =
+        (typeof it.productId === "string" && it.productId) ||
+        (typeof it.productId === "object" && it.productId?._id) ||
+        productObj?._id ||
+        "";
+
+      return {
+        product: productObj,
+        productId: pid,
+        quantity: Number(it.quantity || 0),
+        price: Number(it.price || 0)
+      };
+    });
+    setItems(mapped.length ? mapped : [{ product: null, productId: "", quantity: 1, price: 0 }]);
+
+    setDiscount(Number(initial.discount || 0));
+  }, [initial]);
+
+  // Recalculate subTotal and total
+  useEffect(() => {
+    const st = items.reduce(
+      (acc, item) =>
+        acc + (Number(item.price) || 0) * (Number(item.quantity) || 0),
+      0
+    );
+    setSubTotal(st);
+    const d = Number(discount) || 0;
+    setTotal(Math.max(0, st - d));
+  }, [items, discount]);
+
+  // Generic item update helper
+  const updateItem = (index, patch) => {
+    setItems((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], ...patch };
+      return next;
+    });
+  };
 
   // Handle change in item fields
   const handleItemChange = (index, field, value) => {
-    const newItems = [...items];
     if (field === "quantity" || field === "price") {
       value = Number(value);
       if (Number.isNaN(value) || value < 0) value = 0;
     }
-    newItems[index][field] = value;
-    setItems(newItems);
+    updateItem(index, { [field]: value });
+  };
+
+  // When a product is selected, auto-set productId and price
+  const handleProductChange = (index, selectedProduct) => {
+    if (!selectedProduct) {
+      updateItem(index, { product: null, productId: "", price: 0 });
+      return;
+    }
+    updateItem(index, {
+      product: selectedProduct,
+      productId: selectedProduct._id,
+      price: Number(selectedProduct.price) || 0
+    });
   };
 
   // Add/Remove item rows
-  const addItem = () => setItems([...items, { productId: "", quantity: 1, price: 0 }]);
+  const addItem = () =>
+    setItems((prev) => [
+      ...prev,
+      { product: null, productId: "", quantity: 1, price: 0 }
+    ]);
+
   const removeItem = (index) => {
-    const newItems = items.filter((_, i) => i !== index);
-    setItems(newItems.length ? newItems : [{ productId: "", quantity: 1, price: 0 }]);
+    setItems((prev) => {
+      const next = prev.filter((_, i) => i !== index);
+      return next.length
+        ? next
+        : [{ product: null, productId: "", quantity: 1, price: 0 }];
+    });
   };
 
-  // Simple client-side validation
+  // Validation
   const validate = () => {
     if (!customerId) return "Please select a customer.";
     if (!items.length) return "Add at least one item.";
     for (let i = 0; i < items.length; i++) {
       const it = items[i];
       if (!it.productId) return `Row ${i + 1}: Select a product.`;
-      if (!it.quantity || it.quantity <= 0) return `Row ${i + 1}: Quantity must be > 0.`;
-      if (it.price == null || it.price < 0) return `Row ${i + 1}: Price must be >= 0.`;
+      if (!it.quantity || it.quantity <= 0)
+        return `Row ${i + 1}: Quantity must be > 0.`;
+      if (it.price == null || it.price < 0)
+        return `Row ${i + 1}: Price must be >= 0.`;
     }
     if (total < 0) return "Total cannot be negative.";
     return "";
   };
 
-  // Submit
+  // Submit (create or update)
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -66,24 +148,46 @@ function SaleForm({ onSaleAdded }) {
 
     setSubmitting(true);
     try {
-      // If your backend Sale model supports customerId, send it.
-      // Keep customer (text) optional for display if you want.
-      const payload = { customerId, customer: customer || undefined, items, total };
+      const payload = {
+        customerId,
+        customer: customer || undefined,
+        items: items.map((it) => ({
+          productId: it.productId,
+          quantity: it.quantity,
+          price: it.price
+        })),
+        subTotal,
+        discount,
+        total
+      };
 
-      const res = await api.post("/sales", payload);
+      let res;
+      if (initial?._id) {
+        res = await api.put(`/sales/${initial._id}`, payload);
+      } else {
+        res = await api.post("/sales", payload);
+      }
+
       onSaleAdded?.(res.data);
 
-      // Reset form
-      setCustomerId("");
-      setCustomer("");
-      setItems([{ productId: "", quantity: 1, price: 0 }]);
-      setTotal(0);
+      // Reset only if creating; let parent close on edit
+      if (!initial?._id) {
+        setCustomerId("");
+        setCustomer("");
+        setItems([{ product: null, productId: "", quantity: 1, price: 0 }]);
+        setDiscount(0);
+      }
     } catch (err) {
-      setError(err?.response?.data?.error || "Failed to save sale");
+      setError(
+        err?.response?.data?.error ||
+          (initial?._id ? "Failed to update sale" : "Failed to save sale")
+      );
     } finally {
       setSubmitting(false);
     }
   };
+
+  const isEditing = Boolean(initial?._id);
 
   return (
     <form onSubmit={handleSubmit}>
@@ -96,32 +200,33 @@ function SaleForm({ onSaleAdded }) {
         <CustomerSelect value={customerId} onChange={setCustomerId} />
       </div>
 
-      {/* Optional free-text customer display/name if needed */}
-      {/* <div style={{ marginBottom: 8 }}>
-        <input
-          type="text"
-          placeholder="Customer name (optional)"
-          value={customer}
-          onChange={(e) => setCustomer(e.target.value)}
-        />
-      </div> */}
-
       <hr />
 
       <div>
-        <h4>Items</h4>
+        <h4>{isEditing ? "Edit Items" : "Items"}</h4>
         {items.map((item, index) => (
-          <div key={index} style={{ marginBottom: 10, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <div
+            key={index}
+            style={{
+              marginBottom: 10,
+              display: "flex",
+              gap: 8,
+              alignItems: "center",
+              flexWrap: "wrap"
+            }}
+          >
             <ProductSelect
-              value={item.productId}
-              onChange={(val) => handleItemChange(index, "productId", val)}
+              value={item.product} // pass the whole product for controlled display
+              onChange={(prod) => handleProductChange(index, prod)}
             />
             <input
               type="number"
               placeholder="Quantity"
               value={item.quantity}
               min="1"
-              onChange={(e) => handleItemChange(index, "quantity", e.target.value)}
+              onChange={(e) =>
+                handleItemChange(index, "quantity", e.target.value)
+              }
               style={{ width: 100 }}
             />
             <input
@@ -130,7 +235,9 @@ function SaleForm({ onSaleAdded }) {
               value={item.price}
               min="0"
               step="0.01"
-              onChange={(e) => handleItemChange(index, "price", e.target.value)}
+              onChange={(e) =>
+                handleItemChange(index, "price", e.target.value)
+              }
               style={{ width: 120 }}
             />
             <button type="button" onClick={() => removeItem(index)}>
@@ -145,12 +252,25 @@ function SaleForm({ onSaleAdded }) {
 
       <hr />
 
-      <div>
-        <strong>Total: </strong> ₹{total.toFixed(2)}
+      {/* Totals */}
+      <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+        <div>Subtotal: ₹{subTotal.toFixed(2)}</div>
+        <div>
+          Discount:{" "}
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            value={discount}
+            onChange={(e) => setDiscount(Number(e.target.value) || 0)}
+            style={{ width: 120 }}
+          />
+        </div>
+        <strong>Total: ₹{total.toFixed(2)}</strong>
       </div>
 
       <button type="submit" style={{ marginTop: 15 }} disabled={submitting}>
-        {submitting ? "Saving..." : "Save Sale"}
+        {submitting ? (isEditing ? "Updating..." : "Saving...") : (isEditing ? "Update Sale" : "Save Sale")}
       </button>
     </form>
   );

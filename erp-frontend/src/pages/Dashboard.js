@@ -1,16 +1,22 @@
 
 import { useAppState } from '../context/AppContext';
 import { useNavigate } from 'react-router-dom';
-import { Box, Card, CardActionArea, CardContent, Typography, Grid } from '@mui/material';
+import { Box, Card, CardActionArea, CardContent, Typography, Grid, CardHeader, Avatar, Chip, Stack } from '@mui/material';
+import PointOfSaleRoundedIcon from '@mui/icons-material/PointOfSaleRounded';
+import ShoppingCartRoundedIcon from '@mui/icons-material/ShoppingCartRounded';
+import Inventory2RoundedIcon from '@mui/icons-material/Inventory2Rounded';
+import PeopleAltRoundedIcon from '@mui/icons-material/PeopleAltRounded';
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 
-const moduleLabels = {
-  sales: 'Sales',
-  purchase: 'Purchase',
-  inventory: 'Inventory',
-  crm: 'CRM',
-  
+
+
+
+const moduleMeta = {
+  sales: { label: 'Sales', icon: <PointOfSaleRoundedIcon /> },
+  purchase: { label: 'Purchase', icon: <ShoppingCartRoundedIcon /> },
+  inventory: { label: 'Inventory', icon: <Inventory2RoundedIcon /> },
+  crm: { label: 'CRM', icon: <PeopleAltRoundedIcon /> },
 };
 
 export default function Dashboard() {
@@ -27,7 +33,7 @@ export default function Dashboard() {
     async function fetchOrg() {
       if (activeOrgId) {
         const res = await axios.get(
-          `http://localhost:5000/api/orgs/${activeOrgId}`,
+          `http://192.168.220.54:5000/api/orgs/${activeOrgId}`,
           { headers: { Authorization: `Bearer ${token}` } }
         );
         setOrg(res.data);
@@ -37,11 +43,11 @@ export default function Dashboard() {
   }, [activeOrgId, token]);
 
   return (
-    <Box sx={{ padding: 4 }}>
+    <Box sx={{ p: { xs: 2, md: 4 } }}>
       <Typography variant="h4" gutterBottom>
         Dashboard
       </Typography>
-      <Typography variant="body1" gutterBottom>
+      <Typography variant="body2" color="text.secondary" gutterBottom>
         Select a module to get started.
       </Typography>
 
@@ -52,16 +58,23 @@ export default function Dashboard() {
         </div>
       )}
 
-      <Grid container spacing={4} sx={{ marginTop: 2 }}>
+
+
+      <Grid container spacing={3} sx={{ mt: 2 }}>
         {enabledModules.map((module) => (
           <Grid item xs={12} sm={6} md={4} key={module}>
-            <Card>
-              <CardActionArea onClick={() => handleCardClick(module)}>
+            <Card variant="outlined" sx={{ height: '100%' }}>
+              <CardActionArea onClick={() => handleCardClick(module)} sx={{ height: '100%' }}>
+                <CardHeader
+                  avatar={<Avatar color="primary">{moduleMeta[module]?.icon}</Avatar>}
+                  titleTypographyProps={{ variant: 'h6' }}
+                  title={moduleMeta[module]?.label || module}
+                  subheader={`Manage your ${moduleMeta[module]?.label || module} operations`}
+                />
                 <CardContent>
-                  <Typography variant="h5">{moduleLabels[module] || module}</Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Manage your {moduleLabels[module] || module} operations.
-                  </Typography>
+                  <Stack direction="row" spacing={1}>
+                    <Chip size="small" label="Quick Access" variant="outlined" />
+                  </Stack>
                 </CardContent>
               </CardActionArea>
             </Card>

@@ -30,7 +30,7 @@ export default function RoleManagement({ orgId }) {
     const fetchUsers = async () => {
       try {
         const res = await axios.get(
-          `http://localhost:5000/api/orgs/${orgId}/users`,
+          `http://192.168.220.54:5000/api/orgs/${orgId}/users`,
           { headers: { Authorization: `Bearer ${token}` } }
         );
 
@@ -80,7 +80,7 @@ export default function RoleManagement({ orgId }) {
     try {
       const { role, modules } = editedUsers[userId];
       await axios.post(
-        `http://localhost:5000/api/orgs/${orgId}/users/${userId}`,
+        `http://192.168.220.54:5000/api/orgs/${orgId}/users/${userId}`,
         { role, enabledModules: modules },
         { headers: { Authorization: `Bearer ${token}` } }
       );

@@ -14,7 +14,8 @@ import {
   Menu,
   MenuItem,
   ListItemIcon,
-  ListItemText
+  ListItemText,
+  Tooltip
 } from "@mui/material";
 
 import MoreVertIcon from "@mui/icons-material/MoreVert";
@@ -25,7 +26,6 @@ import PrintIcon from "@mui/icons-material/Print";
 import AddCircleIcon from "@mui/icons-material/AddCircle";
 import PaymentsIcon from "@mui/icons-material/Payments";
 
-// STYLED COMPONENT
 const StyledTable = styled(Table)(() => ({
   whiteSpace: "pre",
   "& thead": {
@@ -62,6 +62,26 @@ function statusColor(status) {
   }
 }
 
+// NEW: helper to render items text nicely
+function getItemsPreview(sale) {
+  const items = Array.isArray(sale?.items) ? sale.items : [];
+  if (!items.length) return "-";
+
+  // Each item can have: { product: {name}, productId, name, quantity }
+  const parts = items.map((it) => {
+    const qty = Number(it?.quantity || 0);
+    const name =
+      it?.name || // if backend denormalized name
+      (typeof it?.product === "object" && it?.product?.name) || // if product object populated
+      (typeof it?.productId === "object" && it?.productId?.name) || // if productId populated
+      it?.productName || // any custom field
+      "Item";
+    return `${name} x${qty}`;
+  });
+
+  return parts.join(", ");
+}
+
 export default function SaleTable({
   sales = [],
   loading = false,
@@ -75,7 +95,6 @@ export default function SaleTable({
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
 
-  // Menu state
   const [anchorEl, setAnchorEl] = useState(null);
   const [selectedSale, setSelectedSale] = useState(null);
   const open = Boolean(anchorEl);
@@ -110,6 +129,8 @@ export default function SaleTable({
             <TableCell>Date</TableCell>
             <TableCell>Invoice #</TableCell>
             <TableCell>Customer</TableCell>
+            {/* NEW COLUMN */}
+            <TableCell>Items</TableCell>
             <TableCell align="right">Total</TableCell>
             <TableCell align="right">Paid</TableCell>
             <TableCell>Status</TableCell>
@@ -131,11 +152,21 @@ export default function SaleTable({
                 const paid = currencyINR(sale?.paymentsTotal || 0);
                 const status = (sale?.paymentStatus || "unpaid").toLowerCase();
 
+                const itemsPreview = getItemsPreview(sale);
+
                 return (
                   <TableRow key={sale?._id}>
                     <TableCell>{dateStr}</TableCell>
                     <TableCell>{invoiceNo}</TableCell>
                     <TableCell>{customer}</TableCell>
+                    {/* NEW CELL */}
+                    <TableCell sx={{ maxWidth: 260 }}>
+                      <Tooltip title={itemsPreview}>
+                        <span style={{ whiteSpace: "normal", textTransform: "none" }}>
+                          {itemsPreview}
+                        </span>
+                      </Tooltip>
+                    </TableCell>
                     <TableCell align="right">{total}</TableCell>
                     <TableCell align="right">{paid}</TableCell>
                     <TableCell>
@@ -155,7 +186,7 @@ export default function SaleTable({
               })
           ) : (
             <TableRow>
-              <TableCell colSpan={7} align="center">
+              <TableCell colSpan={8} align="center">
                 No sales found
               </TableCell>
             </TableRow>
@@ -163,7 +194,6 @@ export default function SaleTable({
         </TableBody>
       </StyledTable>
 
-      {/* Dropdown menu */}
       <Menu
         anchorEl={anchorEl}
         open={open}

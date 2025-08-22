@@ -1,44 +1,28 @@
-import React, { useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import axios from 'axios';
-import { onAuthStateChanged, getIdToken, signOut as firebaseSignOut } from 'firebase/auth';
-import { auth } from './firebase';
-import { useAppDispatch, useAppState } from './context/AppContext';
+import React, { useEffect } from "react";
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import axios from "axios";
+import { onAuthStateChanged, getIdToken, signOut as firebaseSignOut } from "firebase/auth";
+import { auth } from "./firebase";
+import { useAppDispatch, useAppState } from "./context/AppContext";
 
-import SignIn from './components/SignIn';
-import ModuleManagement from './components/ModuleManagement';
-import ModuleGuard from './components/ModuleGuard';
-import Navbar from './components/Navbar';
+import SignIn from "./components/SignIn";
+import ModuleGuard from "./components/ModuleGuard";
+import Navbar from "./components/Navbar";
 
-import Dashboard from './pages/Dashboard';
+import ChooseOrg from "./pages/ChooseOrg";
 
+import SalesInvoicePrint from "./pages/print/SaleInvoicePrint";
+import CashBillPrint from "./pages/print/CashBillPrint";
 
-import RoleManagement from './pages/RoleManagement';
-import CompanyProfilePage from './pages/CompanyProfile';
-import ChooseOrg from './pages/ChooseOrg'; 
-
-import SalesPage from './pages/SalesPage';
-import PurchasePage from './pages/PurchasesPage';
-import InventoryPage from './pages/InventoryPage';
-import CrmCustomersPage from './pages/CrmCustomersPage';
-import SalesInvoicePrint from './pages/print/SaleInvoicePrint';
-import CashBillPrint from './pages/print/CashBillPrint';  
-
-import { signOut } from "firebase/auth";
-import { AppBar } from '@mui/material';
-
+import routes from "./routes"; // ✅ new import
 
 function App() {
-
-  
   const dispatch = useAppDispatch();
-  const { user, token, activeOrgId, role,needsOrgSelection } = useAppState();
+  const { user, token, activeOrgId, role, needsOrgSelection } = useAppState();
 
-
-  console.log('user:', user);
-console.log('activeOrgId:', activeOrgId);
-console.log('needsOrgSelection:', needsOrgSelection);
-
+  console.log("user:", user);
+  console.log("activeOrgId:", activeOrgId);
+  console.log("needsOrgSelection:", needsOrgSelection);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -47,22 +31,19 @@ console.log('needsOrgSelection:', needsOrgSelection);
           const idToken = await getIdToken(firebaseUser);
 
           const res = await axios.post(
-            'http://localhost:5000/api/auth/signin',
+            "http://192.168.220.54:5000/api/auth/signin",
             {},
             { headers: { Authorization: `Bearer ${idToken}` } }
           );
 
           const userData = res.data.user;
-
-          console.log(res.data.user)
+          console.log(res.data.user);
 
           if (res.data.needsOrgSelection) {
+            console.log("need orgSelection", res.data);
 
-            console.log("need orgSelection",res.data)
-            
-            // User needs to create/join org - set flag and stop here
             dispatch({
-              type: 'LOGIN',
+              type: "LOGIN",
               payload: {
                 user: userData,
                 token: idToken,
@@ -75,7 +56,7 @@ console.log('needsOrgSelection:', needsOrgSelection);
           } else if (userData.orgMemberships && userData.orgMemberships.length > 0) {
             const firstMembership = userData.orgMemberships[0];
             dispatch({
-              type: 'LOGIN',
+              type: "LOGIN",
               payload: {
                 user: userData,
                 token: idToken,
@@ -86,9 +67,8 @@ console.log('needsOrgSelection:', needsOrgSelection);
               },
             });
           } else {
-            // No membership but no flag? Treat as needsOrgSelection true to be safe
             dispatch({
-              type: 'LOGIN',
+              type: "LOGIN",
               payload: {
                 user: userData,
                 token: idToken,
@@ -100,93 +80,71 @@ console.log('needsOrgSelection:', needsOrgSelection);
             });
           }
         } catch (error) {
-          console.error('Sign-in error:', error);
-          // On error - sign out client and clear state
+          console.error("Sign-in error:", error);
           await firebaseSignOut(auth);
-          dispatch({ type: 'LOGOUT' });
+          dispatch({ type: "LOGOUT" });
         }
       } else {
-        // No firebase user - clear state
-        dispatch({ type: 'LOGOUT' });
+        dispatch({ type: "LOGOUT" });
       }
     });
 
     return () => unsubscribe();
   }, [dispatch]);
 
+  // If no user, show Sign In
   if (!user) {
     return <SignIn onLogin={() => {}} />;
   }
 
+  // If org selection is needed
+  if (needsOrgSelection || !activeOrgId) {
+    return (
+      <Router>
+        <ChooseOrg
+          token={token}
+          onOrgJoined={(updatedUser) => {
+            dispatch({
+              type: "LOGIN",
+              payload: {
+                user: updatedUser,
+                token,
+                activeOrgId: updatedUser.orgMemberships[0]?.orgId || null,
+                role: updatedUser.orgMemberships?.role || null,
+                enabledModules: updatedUser.orgMemberships?.enabledModules || [],
+                needsOrgSelection: false,
+              },
+            });
+          }}
+        />
+      </Router>
+    );
+  }
 
-
-if (needsOrgSelection || !activeOrgId) {
-  // Needs org selection or no orgId, show ChooseOrg
-  return <Router> <ChooseOrg token={token} onOrgJoined={(updatedUser) => {
-    dispatch({
-      type: 'LOGIN',
-      payload: {
-        user: updatedUser,
-        token,
-        activeOrgId: updatedUser.orgMemberships[0]?.orgId || null,
-        role: updatedUser.orgMemberships?.role || null,
-        enabledModules: updatedUser.orgMemberships?.enabledModules || [],
-        needsOrgSelection: false,
-      }
-    });
-  }} /> </Router>;
-}
-
-  // User is signed in and belongs to org - allow dashboard and modules
+  // ✅ Normal app routes
   return (
     <Router>
-      <Navbar/>
+      <Navbar />
       <Routes>
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/sales/:id/print" element={<SalesInvoicePrint />} />
+        {routes(role, activeOrgId).map((r, idx) => (
+          <Route
+            key={idx}
+            path={r.path}
+            element={
+              r.module ? (
+                <ModuleGuard module={r.module}>{r.component}</ModuleGuard>
+              ) : (
+                r.component
+              )
+            }
+          />
+        ))}
 
+        {/* Extra routes (not in sidebar) */}
+        <Route path="/sales/:id/print" element={<SalesInvoicePrint />} />
         <Route path="/cash-bills/:id/print" element={<CashBillPrint />} />
 
-        <Route
-          path="/sales"
-          element={
-            <ModuleGuard module="sales">
-              <SalesPage />
-            </ModuleGuard>
-          }
-        />
-
-        <Route
-          path="/purchase"
-          element={
-            <ModuleGuard module="purchase">
-              <PurchasePage />
-            </ModuleGuard>
-          }
-        />
-
-                <Route
-          path="/crm"
-          element={
-            <ModuleGuard module="sales">
-              <CrmCustomersPage />
-            </ModuleGuard>
-          }
-        />
-
-        {role === 'admin' && <Route path="/roles" element={<RoleManagement orgId={activeOrgId} />} />}
-        {role === 'admin' && <Route path="/settings/company" element={<CompanyProfilePage />} />}
-
-        <Route
-          path="/inventory"
-          element={
-            <ModuleGuard module="inventory">
-              <InventoryPage />
-            </ModuleGuard>
-          }
-        />
-
-        {/* Redirect unknown paths to root */}
+        {/* Redirect unknown paths */}
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </Router>

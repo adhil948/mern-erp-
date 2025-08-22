@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
-import { Button, Checkbox, FormControlLabel, Typography, Select, MenuItem } from '@mui/material';
+import { Button, Checkbox, FormControlLabel, Typography, Select, MenuItem, Paper, Stack, Divider } from '@mui/material';
 
 const allModules = ['sales', 'purchase', 'inventory','crm'];
 const allRoles = ['admin', 'sales_user', 'purchase_user', 'inventory_user'];
@@ -40,22 +40,31 @@ export default function ModuleManagement({ orgId, token }) {
   if (loading) return <div>Loading...</div>;
 
   return (
-    <div>
-      <Typography variant="h6">Organization Modules</Typography>
-      {allModules.map(mod => (
-        <FormControlLabel
-          key={mod}
-          control={<Checkbox checked={orgModules.includes(mod)} onChange={() => toggleModule(mod)} />}
-          label={mod.charAt(0).toUpperCase() + mod.slice(1)}
-        />
-      ))}
-      <Button variant="contained" onClick={saveOrgModules}>Save Modules</Button>
+    <Stack spacing={3}>
+      <Paper variant="outlined" sx={{ p: 2 }}>
+        <Typography variant="h6" gutterBottom>Organization Modules</Typography>
+        <Stack direction="row" spacing={2} sx={{ flexWrap: 'wrap' }}>
+          {allModules.map(mod => (
+            <FormControlLabel
+              key={mod}
+              control={<Checkbox checked={orgModules.includes(mod)} onChange={() => toggleModule(mod)} />}
+              label={mod.charAt(0).toUpperCase() + mod.slice(1)}
+            />
+          ))}
+        </Stack>
+        <Divider sx={{ my: 2 }} />
+        <Button variant="contained" onClick={saveOrgModules}>Save Modules</Button>
+      </Paper>
 
-      <Typography variant="h6" style={{ marginTop: '2rem' }}>Users</Typography>
-      {users.map(user => (
-        <UserEditor key={user._id} user={user} token={token} orgId={orgId} updateUser={updateUser} />
-      ))}
-    </div>
+      <Paper variant="outlined" sx={{ p: 2 }}>
+        <Typography variant="h6" gutterBottom>Users</Typography>
+        <Stack spacing={2}>
+          {users.map(user => (
+            <UserEditor key={user._id} user={user} token={token} orgId={orgId} updateUser={updateUser} />
+          ))}
+        </Stack>
+      </Paper>
+    </Stack>
   );
 }
 
@@ -72,27 +81,29 @@ function UserEditor({ user, token, orgId, updateUser }) {
   };
 
   return (
-    <div style={{ marginBottom: '1rem', border: '1px solid #ccc', padding: '1rem' }}>
-      <div><strong>{user.name || user.email}</strong></div>
-      <div>
-        Role:{' '}
-        <Select value={role} onChange={(e) => setRole(e.target.value)}>
-          {['admin', 'sales_user', 'purchase_user', 'inventory_user'].map(r => (
-            <MenuItem key={r} value={r}>{r}</MenuItem>
+    <Paper variant="outlined" sx={{ p: 2 }}>
+      <Typography variant="subtitle1" gutterBottom>{user.name || user.email}</Typography>
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems="center">
+        <Stack direction="row" spacing={1} alignItems="center">
+          <Typography variant="body2">Role:</Typography>
+          <Select size="small" value={role} onChange={(e) => setRole(e.target.value)}>
+            {['admin', 'sales_user', 'purchase_user', 'inventory_user'].map(r => (
+              <MenuItem key={r} value={r}>{r}</MenuItem>
+            ))}
+          </Select>
+        </Stack>
+        <Divider flexItem orientation="vertical" sx={{ display: { xs: 'none', sm: 'block' } }} />
+        <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
+          {['sales', 'purchase', 'inventory','crm'].map(mod => (
+            <FormControlLabel
+              key={mod}
+              control={<Checkbox checked={modules.includes(mod)} onChange={() => toggleUserModule(mod)} />}
+              label={mod}
+            />
           ))}
-        </Select>
-      </div>
-      <div>
-        Modules:
-        {['sales', 'purchase', 'inventory','crm'].map(mod => (
-          <FormControlLabel
-            key={mod}
-            control={<Checkbox checked={modules.includes(mod)} onChange={() => toggleUserModule(mod)} />}
-            label={mod}
-          />
-        ))}
-      </div>
-      <Button variant="outlined" onClick={handleSave}>Save User Settings</Button>
-    </div>
+        </Stack>
+        <Button variant="outlined" onClick={handleSave} sx={{ ml: 'auto' }}>Save</Button>
+      </Stack>
+    </Paper>
   );
 }

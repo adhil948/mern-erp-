@@ -17,14 +17,22 @@ function ProductSelect({ value, onChange, placeholder = 'Select product', disabl
   }, [api]);
 
   return (
-    <select value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled}>
-      <option value="">{placeholder}</option>
-      {options.map(p => (
-        <option key={p._id} value={p._id}>
-          {p.name} — ₹{p.price}
-        </option>
-      ))}
-    </select>
+<select
+  value={value?._id || ""}
+  onChange={(e) => {
+    const selected = options.find((p) => p._id === e.target.value);
+    onChange(selected || null);
+  }}
+  disabled={disabled}
+>
+  <option value="">{placeholder}</option>
+  {options.map((p) => (
+    <option key={p._id} value={p._id}>
+      {p.name} — ₹{p.price}
+    </option>
+  ))}
+</select>
+
   );
 }
 

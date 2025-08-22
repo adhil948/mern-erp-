@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
+    "@coreui/react": "^5.7.1",
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
     "@mui/icons-material": "^7.3.1",
@@ -16,6 +17,7 @@
     "axios": "^1.11.0",
     "dayjs": "^1.11.13",
     "firebase": "^12.1.0",
+    "gsap": "^3.13.0",
     "lucide-react": "^0.540.0",
     "mui": "^0.0.1",
     "react": "^19.1.1",
