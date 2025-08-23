@@ -31,7 +31,7 @@ function App() {
           const idToken = await getIdToken(firebaseUser);
 
           const res = await axios.post(
-            "http://192.168.220.54:5000/api/auth/signin",
+            "http://localhost:5000/api/auth/signin",
             {},
             { headers: { Authorization: `Bearer ${idToken}` } }
           );

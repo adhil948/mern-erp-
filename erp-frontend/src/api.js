@@ -5,7 +5,7 @@ export function useApi() {
   const { token, activeOrgId } = useAppState();
 
   const api = axios.create({
-    baseURL: "http://192.168.220.54:5000/api",
+    baseURL: "http://localhost:5000/api",
   });
 
   api.interceptors.request.use((config) => {

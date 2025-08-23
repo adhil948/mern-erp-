@@ -33,7 +33,7 @@ export default function Dashboard() {
     async function fetchOrg() {
       if (activeOrgId) {
         const res = await axios.get(
-          `http://192.168.220.54:5000/api/orgs/${activeOrgId}`,
+          `http://localhost:5000/api/orgs/${activeOrgId}`,
           { headers: { Authorization: `Bearer ${token}` } }
         );
         setOrg(res.data);
