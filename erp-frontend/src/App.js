@@ -13,6 +13,7 @@ import ChooseOrg from "./pages/ChooseOrg";
 
 import SalesInvoicePrint from "./pages/print/SaleInvoicePrint";
 import CashBillPrint from "./pages/print/CashBillPrint";
+import PurchaseInvoicePrint from "./pages/print/PurchaseInvoicePrint";
 
 import routes from "./routes";
 import { Box, Toolbar } from "@mui/material"; // ⬅️ add MUI Box/Toolbar
@@ -140,6 +141,7 @@ function App() {
 
           <Route path="/sales/:id/print" element={<SalesInvoicePrint />} />
           <Route path="/cash-bills/:id/print" element={<CashBillPrint />} />
+          <Route path="/purchases/:id/print" element={<PurchaseInvoicePrint />} />
 
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>

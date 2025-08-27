@@ -1,41 +1,92 @@
-import React, { useEffect, useState } from 'react';
-import { useApi } from '../api';
-import PurchaseForm from '../components/purchase/PurchaseForm';
-import SupplierForm from '../components/purchase/SupplierForm';
+// src/pages/PurchasesPage.jsx
+import React, { useEffect, useMemo, useState } from "react";
+import { useApi } from "../api";
+import { useNavigate } from "react-router-dom";
+import PurchaseForm from "../components/purchase/PurchaseForm";
+import SupplierForm from "../components/purchase/SupplierForm";
+import PurchaseTable from "../components/purchase/PurchaseTable";
+import { Box, Stack, TextField, MenuItem, Button } from "@mui/material";
+
+const STATUS_OPTIONS = [
+  { label: "All", value: "" },
+  { label: "Completed", value: "completed" },
+  { label: "Partial", value: "partial" },
+  { label: "In-Transit", value: "in-transit" },
+  { label: "Cancelled", value: "cancelled" },
+];
 
 export default function PurchasesPage() {
   const api = useApi();
-  const [list, setList] = useState([]);
-  const [q, setQ] = useState('');
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
+  const navigate = useNavigate();
+
+  const [purchases, setPurchases] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState("");
+
+  // Forms
   const [showForm, setShowForm] = useState(false);
+  const [editing, setEditing] = useState(null);
   const [showSupplierForm, setShowSupplierForm] = useState(false);
 
-  // CRUD state
-  const [editing, setEditing] = useState(null);        // purchase being edited
-  const [expandedId, setExpandedId] = useState(null);  // for viewing items inline
-  const [loading, setLoading] = useState(false);
-  const [err, setErr] = useState('');
+  // Filters
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState("");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
 
   const load = async () => {
-    const params = new URLSearchParams();
-    if (q) params.set('q', q);
-    if (from) params.set('from', from);
-    if (to) params.set('to', to);
     try {
       setLoading(true);
-      setErr('');
+      setErr("");
+      const params = new URLSearchParams();
+      if (search) params.set("q", search);
+      if (fromDate) params.set("from", fromDate);
+      if (toDate) params.set("to", toDate);
+      if (status) params.set("status", status);
       const res = await api.get(`/purchases?${params.toString()}`);
-      setList(res.data);
+      setPurchases(res.data || []);
     } catch (e) {
-      setErr(e?.response?.data?.error || 'Failed to load purchases');
+      setErr(e?.response?.data?.error || "Failed to load purchases");
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => { load(); }, []); // initial
+  useEffect(() => {
+    load();
+  }, []);
+
+  const getSupplierDisplay = (p) => {
+    const sid = p?.supplierId;
+    if (sid && typeof sid === "object") return sid.name || sid.email || "(supplier)";
+    if (typeof sid === "string" && sid.length) return "(supplier)";
+    return p?.supplier || "(supplier)";
+  };
+
+  const filteredPurchases = useMemo(() => {
+    const s = (search || "").trim().toLowerCase();
+    return (purchases || []).filter((p) => {
+      if (status && (p?.status || "").toLowerCase() !== status) return false;
+      if (fromDate) {
+        const d = p?.createdAt ? new Date(p.createdAt) : null;
+        if (!d || d < new Date(fromDate)) return false;
+      }
+      if (toDate) {
+        const d = p?.createdAt ? new Date(p.createdAt) : null;
+        const end = new Date(toDate);
+        end.setHours(23, 59, 59, 999);
+        if (!d || d > end) return false;
+      }
+      if (!s) return true;
+      const dateStr = p?.createdAt ? new Date(p.createdAt).toLocaleDateString() : "-";
+      const billNo = p?.billNumber || "-";
+      const supplier = getSupplierDisplay(p);
+      const totalStr = Number(p?.total || 0).toFixed(2);
+      const statusStr = (p?.status || "").toLowerCase();
+      const haystack = [dateStr, billNo, supplier, totalStr, statusStr].join(" ").toLowerCase();
+      return haystack.includes(s);
+    });
+  }, [purchases, search, status, fromDate, toDate]);
 
   const onSaved = () => {
     setShowForm(false);
@@ -49,145 +100,134 @@ export default function PurchasesPage() {
     setShowForm(true);
   };
 
-  const onDelete = async (id) => {
-    if (!window.confirm('Delete this purchase? This will revert stock changes.')) return;
+  const onDelete = async (purchaseId) => {
+    if (!window.confirm("Delete this purchase? This will revert stock changes.")) return;
     try {
-      await api.delete(`/purchases/${id}`);
-      // if deleted one was expanded, collapse it
-      if (expandedId === id) setExpandedId(null);
+      await api.delete(`/purchases/${purchaseId}`);
       load();
     } catch (e) {
-      alert(e?.response?.data?.error || 'Failed to delete purchase');
+      alert(e?.response?.data?.error || "Failed to delete purchase");
     }
   };
 
-  const toggleExpand = (id) => {
-    setExpandedId(prev => (prev === id ? null : id));
+  const onPrintBill = (purchase) => {
+    if (!purchase?._id) return;
+    navigate(`/purchases/${purchase._id}/print`);
   };
 
-return (
-    <div style={{ padding: 16 }}>
-        <h2>Purchases</h2>
+  const clearFilters = () => {
+    setSearch("");
+    setStatus("");
+    setFromDate("");
+    setToDate("");
+  };
 
-        {/* Filters and actions */}
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
-            <input placeholder="Search by bill no." value={q} onChange={(e)=>setQ(e.target.value)} />
-            <input type="date" value={from} onChange={(e)=>setFrom(e.target.value)} />
-            <input type="date" value={to} onChange={(e)=>setTo(e.target.value)} />
-            <button onClick={load}>Search</button>
-            <button onClick={() => { setEditing(null); setShowForm(true); }}>Add Purchase</button>
-            <button onClick={() => setShowSupplierForm(true)}>Add Supplier</button>
-        </div>
-
-        {err && <div style={{ color: 'red', marginBottom: 8 }}>{err}</div>}
-
-        {/* Forms */}
-        {showForm && (
-            <PurchaseForm
-                onSaved={onSaved}
-                // optionally pass initial for editing (requires your form to accept and prefill)
-                initial={editing || null}
-            />
-        )}
-        {showSupplierForm && <SupplierForm onSaved={onSaved} />}
-
-        {/* List */}
-        <div style={{ overflowX: 'auto', opacity: loading ? 0.6 : 1 }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                    <tr>
-                        <th style={th}></th>
-                        <th style={th}>Date & Time</th>
-                        <th style={th}>Bill No.</th>
-                        <th style={th}>Supplier</th>
-                        <th style={th}>Total</th>
-                        <th style={th}>Items</th>
-                        <th style={th}>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {list.map(p => (
-                        <React.Fragment key={p._id}>
-                            <tr>
-                                <td style={td}>
-                                    <button onClick={() => toggleExpand(p._id)}>
-                                        {expandedId === p._id ? '▾' : '▸'}
-                                    </button>
-                                </td>
-                                <td style={td}>
-                                    {p.createdAt
-                                        ? new Date(p.createdAt).toLocaleString(undefined, {
-                                                year: 'numeric',
-                                                month: 'short',
-                                                day: '2-digit',
-                                                hour: '2-digit',
-                                                minute: '2-digit'
-                                            })
-                                        : '-'}
-                                </td>
-                                <td style={td}>{p.billNumber || '-'}</td>
-                                <td style={td}>{p.supplierId?.name || '-'}</td>
-                                <td style={td}>₹{Number(p.total || 0).toFixed(2)}</td>
-                                <td style={td}>{p.items?.length || 0}</td>
-                                <td style={td}>
-                                    <button onClick={() => onEdit(p)}>Edit</button>
-                                    <button onClick={() => onDelete(p._id)} style={{ marginLeft: 8, color: '#e53935' }}>
-                                        Delete
-                                    </button>
-                                </td>
-                            </tr>
-
-                            {expandedId === p._id && (
-                                <tr>
-                                    <td style={td} colSpan={7}>
-                                        <ItemsTable items={p.items} />
-                                        {p.notes && <div style={{ marginTop: 8 }}><strong>Notes:</strong> {p.notes}</div>}
-                                    </td>
-                                </tr>
-                            )}
-                        </React.Fragment>
-                    ))}
-                    {list.length === 0 && !loading && <tr><td style={td} colSpan="7">No purchases found</td></tr>}
-                </tbody>
-            </table>
-        </div>
-    </div>
-);
-}
-
-function ItemsTable({ items = [] }) {
   return (
-    <div style={{ marginTop: 8, overflowX: 'auto' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fafafa' }}>
-        <thead>
-          <tr>
-            <th style={th}>Product</th>
-            <th style={th}>Qty</th>
-            <th style={th}>Cost</th>
-            <th style={th}>Line Total</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((it, i) => {
-            const name = it.productId?.name || it.productId || '(product)';
-            const qty = Number(it.quantity || 0);
-            const cost = Number(it.costPrice || 0);
-            const lineTotal = qty * cost;
-            return (
-              <tr key={i}>
-                <td style={td}>{name}</td>
-                <td style={td}>{qty}</td>
-                <td style={td}>₹{cost.toFixed(2)}</td>
-                <td style={td}>₹{lineTotal.toFixed(2)}</td>
-              </tr>
-            );
-          })}
-          {items.length === 0 && <tr><td style={td} colSpan="4">No items</td></tr>}
-        </tbody>
-      </table>
+    <div style={{ padding: 16 }}>
+      <h2>Purchases</h2>
+
+      {err && <div style={{ color: "red", marginBottom: 8 }}>{err}</div>}
+
+      {/* Actions */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
+        <Button
+          variant="contained"
+          color="primary"
+          onClick={() => {
+            setEditing(null);
+            setShowForm(true);
+          }}
+        >
+          Add Purchase
+        </Button>
+        <Button variant="outlined" onClick={load} disabled={loading}>
+          {loading ? "Refreshing..." : "Refresh"}
+        </Button>
+        <Button variant="outlined" onClick={() => setShowSupplierForm(true)}>
+          Add Supplier
+        </Button>
+      </div>
+
+      {/* Filters */}
+      <Box sx={{ mb: 2 }}>
+        <Stack direction="row" spacing={2} flexWrap="wrap">
+          <TextField
+            label="Search"
+            placeholder="Search date, bill, supplier, total, status"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            size="small"
+            sx={{ minWidth: 260 }}
+          />
+          <TextField
+            select
+            label="Status"
+            value={status}
+            onChange={(e) => setStatus(e.target.value)}
+            size="small"
+            sx={{ minWidth: 180 }}
+          >
+            {STATUS_OPTIONS.map((opt) => (
+              <MenuItem key={opt.value} value={opt.value}>
+                {opt.label}
+              </MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            label="From"
+            type="date"
+            value={fromDate}
+            onChange={(e) => setFromDate(e.target.value)}
+            size="small"
+            InputLabelProps={{ shrink: true }}
+          />
+          <TextField
+            label="To"
+            type="date"
+            value={toDate}
+            onChange={(e) => setToDate(e.target.value)}
+            size="small"
+            InputLabelProps={{ shrink: true }}
+          />
+          <Button variant="text" onClick={clearFilters}>
+            Clear
+          </Button>
+        </Stack>
+      </Box>
+
+      {/* Forms */}
+      {showForm && (
+        <div style={panel}>
+          <PurchaseForm onSaved={onSaved} initial={editing || null} onCancel={() => setShowForm(false)} />
+        </div>
+      )}
+      {showSupplierForm && (
+        <div style={panel}>
+          <SupplierForm onSaved={onSaved} onCancel={() => setShowSupplierForm(false)} />
+        </div>
+      )}
+
+      {/* Table */}
+      <PurchaseTable
+        purchases={filteredPurchases}
+        loading={loading}
+        onEdit={onEdit}
+        onDelete={(p) => onDelete(typeof p === "string" ? p : p?._id)}
+        onView={(p) =>
+          alert(
+            `Bill: ${p.billNumber || "-"}\nItems: ${p.items?.length || 0}\nTotal: ₹${Number(p.total || 0).toFixed(2)}`
+          )
+        }
+        onPrintBill={onPrintBill}
+      />
     </div>
   );
 }
 
-const th = { textAlign: 'left', padding: '8px 6px', borderBottom: '1px solid #eee' };
-const td = { padding: '8px 6px', borderBottom: '1px solid #f4f4f4' };
+const panel = {
+  border: "1px solid #ddd",
+  padding: 12,
+  borderRadius: 8,
+  marginBottom: 12,
+  background: "#fff",
+};
