@@ -22,12 +22,14 @@ export default function CrmCustomersPage() {
   const [customers, setCustomers] = useState([]);
   const [leads, setLeads] = useState([]);
   const [contacts, setContacts] = useState([]);
+  const [suppliers, setSuppliers] = useState([]);
 
   // Filters
   const [search, setSearch] = useState("");
   const [custStatus, setCustStatus] = useState("");
   const [leadStage, setLeadStage] = useState("");
   const [showContacts, setShowContacts] = useState(false);
+  const [showSuppliers, setShowSuppliers] = useState(false);
 
   // Loading + error
   const [loading, setLoading] = useState(false);
@@ -50,6 +52,9 @@ export default function CrmCustomersPage() {
 
   const [ctPage, setCtPage] = useState(0);
   const [ctRpp, setCtRpp] = useState(5);
+
+  const [supPage, setSupPage] = useState(0); // NEW [6]
+  const [supRpp, setSupRpp] = useState(5); 
 
   // Loaders
   const loadCustomers = async () => {
@@ -75,21 +80,30 @@ export default function CrmCustomersPage() {
     setContacts(res.data || []);
   };
 
-  const loadAll = async () => {
-    try {
-      setLoading(true);
-      setErr("");
-      await Promise.all([
-        loadCustomers(),
-        loadLeads(),
-        showContacts ? loadContacts() : Promise.resolve(),
-      ]);
-    } catch (e) {
-      setErr(e?.response?.data?.error || "Failed to load CRM data");
-    } finally {
-      setLoading(false);
-    }
-  };
+  const loadSuppliers = async () => { // NEW
+  const params = new URLSearchParams();
+  if (search) params.set("q", search);
+  const res = await api.get(`/suppliers?${params.toString()}`);
+  setSuppliers(res.data || []);
+};
+
+const loadAll = async () => {
+  try {
+    setLoading(true);
+    setErr("");
+    await Promise.all([
+      loadCustomers(),
+      loadLeads(),
+      showContacts ? loadContacts() : Promise.resolve(),
+      showSuppliers ? loadSuppliers() : Promise.resolve(), // NEW [7]
+    ]);
+  } catch (e) {
+    setErr(e?.response?.data?.error || "Failed to load CRM data");
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   useEffect(() => {
     loadAll(); // initial
@@ -152,6 +166,29 @@ export default function CrmCustomersPage() {
     });
   }, [contacts, search]);
 
+
+  const suppliersFiltered = useMemo(() => { // NEW
+  const s = (search || "").trim().toLowerCase();
+  return (suppliers || []).filter((sp) => {
+    if (!s) return true;
+    const hay = [
+      sp.name,        // supplier name
+      sp.email,       // optional fields aligned with backend shape
+      sp.phone,
+      sp.company,     // if supplier has company field
+      sp.status,      // active/inactive if present
+      sp.category,    // e.g., material category if present
+    ].map((x) => (x || "").toString().toLowerCase()).join(" ");
+    return hay.includes(s);
+  });
+}, [suppliers, search]); // [7]
+
+const suppliersPaged = useMemo(() => { // NEW
+  const start = supPage * supRpp;
+  return suppliersFiltered.slice(start, start + supRpp);
+}, [suppliersFiltered, supPage, supRpp]); // [6]
+
+
   // Pagination slices
   const customersPaged = useMemo(() => {
     const start = custPage * custRpp;
@@ -173,7 +210,8 @@ export default function CrmCustomersPage() {
     setCustPage(0);
     setLeadPage(0);
     setCtPage(0);
-  }, [search, custStatus, leadStage, showContacts]);
+      setSupPage(0);
+  }, [search, custStatus, leadStage, showContacts, showSuppliers]);
 
   // Save/close handlers
   const onSavedAny = () => {
@@ -216,6 +254,17 @@ export default function CrmCustomersPage() {
       alert(e?.response?.data?.error || "Failed to delete contact");
     }
   };
+
+  const removeSupplier = async (id) => { // NEW
+  if (!window.confirm("Delete this supplier?")) return;
+  try {
+    await api.delete(`/suppliers/${id}`);
+    loadSuppliers();
+  } catch (e) {
+    alert(e?.response?.data?.error || "Failed to delete supplier");
+  }
+}; // [7]
+
 
   // Styles consistent with Sales/Inventory
   const panel = {
@@ -412,6 +461,24 @@ export default function CrmCustomersPage() {
             label="Show Contacts"
           />
 
+          <FormControlLabel
+  control={
+    <Checkbox
+      checked={showSuppliers}
+      onChange={async (e) => {
+        const val = e.target.checked;
+        setShowSuppliers(val);
+        if (val && suppliers.length === 0) {
+          await loadSuppliers();
+        }
+      }}
+      size="small"
+    />
+  }
+  label="Show Suppliers"
+/> 
+
+
           <Button
             variant="text"
             onClick={() => {
@@ -419,6 +486,8 @@ export default function CrmCustomersPage() {
               setCustStatus("");
               setLeadStage("");
               setShowContacts(false);
+              setShowSuppliers(false); 
+
             }}
             sx={{ textTransform: "none" }}
           >
@@ -666,6 +735,74 @@ export default function CrmCustomersPage() {
           </div>
         </>
       )}
+
+      {showSuppliers && (
+  <>
+    <h3 style={{ marginTop: 24 }}>Suppliers</h3>
+    <div style={{ overflowX: "auto" }}>
+      <table style={{ width: "100%", borderCollapse: "collapse" }}>
+        <thead>
+          <tr>
+            <th style={th}>Name</th>
+            <th style={th}>Email</th>
+            <th style={th}>Phone</th>
+            <th style={th}>Company</th>
+            <th style={th}>Status</th>
+            <th style={th}>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {suppliersPaged.map((sp) => (
+            <tr key={sp._id}>
+              <td style={td}>{sp.name}</td>
+              <td style={td}>{sp.email || "-"}</td>
+              <td style={td}>{sp.phone || "-"}</td>
+              <td style={td}>{sp.company || "-"}</td>
+              <td style={td}>{sp.status || "-"}</td>
+              <td style={td}>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  onClick={() => {
+                  
+                  }}
+                  sx={{ textTransform: "none", mr: 1 }}
+                >
+                  Edit
+                </Button>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  color="error"
+                  onClick={() => removeSupplier(sp._id)}
+                  sx={{ textTransform: "none" }}
+                >
+                  Delete
+                </Button>
+              </td>
+            </tr>
+          ))}
+          {suppliersFiltered.length === 0 && (
+            <tr>
+              <td style={td} colSpan={6}>
+                No suppliers found
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+      <Pagination
+        total={suppliersFiltered.length}
+        page={supPage}
+        rpp={supRpp}
+        setPage={setSupPage}
+        setRpp={setSupRpp}
+      />
+    </div>
+  </>
+)} 
+
+
     </div>
   );
 }
