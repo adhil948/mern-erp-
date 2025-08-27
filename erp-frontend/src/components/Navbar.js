@@ -290,7 +290,7 @@ export default function Navbar() {
   );
 
   return (
-    <Box sx={{ display: 'flex' }}>
+    <Box sx={{ display: 'flex' }} className="no-print">
       <CssBaseline />
 
       {/* AppBar WITHOUT the toggle button */}

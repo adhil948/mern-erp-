@@ -97,28 +97,21 @@ export default function Dashboard() {
     fetchOrg();
   }, [activeOrgId]);
 
-  useEffect(() => {
-    // Demo: fetch KPIs per range. Replace with real endpoints.
-    async function fetchKpis() {
-      setLoading(true);
-      try {
-        // Example GET: /api/metrics/kpis?orgId=...&range=MTD
-        // const res = await axios.get(`http://localhost:5000/api/metrics/kpis`, { params: { orgId: activeOrgId, range }, headers: { Authorization: `Bearer ${token}` }});
-        // setKpis(res.data);
-        // Mock small change to simulate range switch:
-        const bump = range === 'Today' ? 0.1 : range === '7D' ? 0.3 : range === 'MTD' ? 0.6 : range === 'QTD' ? 0.8 : 1.2;
-        setKpis({
-          sales: { total: Math.round(120000 * bump), delta: +3.2 * bump, trend: [3, 4, 6, 5, 7, 8, 10].map(n=>n*bump) },
-          purchase: { total: Math.round(70000 * bump), delta: -1.1 * bump, trend: [2, 2, 3, 4, 3, 5, 4].map(n=>n*bump) },
-          inventory: { total: Math.round(4300 * bump), delta: +0.9 * bump, trend: [5, 4, 4, 6, 7, 7, 8].map(n=>n*bump) },
-          crm: { total: Math.round(85 * bump), delta: +2.4 * bump, trend: [1, 2, 2, 3, 4, 4, 5].map(n=>n*bump) },
-        });
-      } finally {
-        setLoading(false);
-      }
+useEffect(() => {
+  async function fetchKpis() {
+    setLoading(true);
+    try {
+      const res = await api.get(`/metrics/kpis`, { params: { orgId: activeOrgId, range } });
+      setKpis(res.data);
+    } catch (e) {
+      console.error('Failed to load KPIs', e);
+      // Optional: toast error, setKpis to zeros as fallback
+    } finally {
+      setLoading(false);
     }
-    fetchKpis();
-  }, [range, activeOrgId, token]);
+  }
+  fetchKpis();
+}, [range, activeOrgId, activeOrgId]);
 
   const visibleModules = useMemo(
     () => enabledModules.filter((m) => moduleMeta[m]),
