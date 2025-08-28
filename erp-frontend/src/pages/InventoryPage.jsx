@@ -170,6 +170,11 @@ export default function InventoryPage() {
         </Stack>
       </Box>
 
+            {/* Form panel */}
+{showForm && (
+  <ProductForm initial={editing} onCancel={onCancel} onSaved={onSaved} />
+)}
+
       {/* Product table */}
       <ProductTable
         products={filtered}
@@ -181,20 +186,6 @@ export default function InventoryPage() {
         }}
       />
 
-      {/* Form panel */}
-      {showForm && (
-        <div
-          style={{
-            border: "1px solid #ddd",
-            padding: 12,
-            borderRadius: 8,
-            marginTop: 12,
-            background: "#fff",
-          }}
-        >
-          <ProductForm initial={editing} onCancel={onCancel} onSaved={onSaved} />
-        </div>
-      )}
 
       {/* Confirm dialog */}
       <ConfirmDialog
