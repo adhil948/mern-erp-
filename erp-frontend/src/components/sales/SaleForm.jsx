@@ -3,16 +3,44 @@ import { useApi } from "../../api";
 import ProductSelect from "../common/ProductSelect";
 import CustomerSelect from "../crm/CustomerSelect";
 
-function SaleForm({ onSaleAdded, initial = null }) {
+// MUI
+import {
+  Box,
+  Paper,
+  Grid,
+  TextField,
+  Typography,
+  Button,
+  Divider,
+  InputAdornment,
+  IconButton,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  CircularProgress,
+  Fade,
+  Stack
+} from "@mui/material";
+
+// Icons
+import PersonAddIcon from "@mui/icons-material/PersonAdd";
+import PercentIcon from "@mui/icons-material/Percent";
+import FormatListNumberedIcon from "@mui/icons-material/FormatListNumbered";
+import CurrencyRupeeIcon from "@mui/icons-material/CurrencyRupee";
+import RemoveCircleOutlineIcon from "@mui/icons-material/RemoveCircleOutline";
+import AddIcon from "@mui/icons-material/Add";
+import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
+
+import CustomerForm from "../crm/CustomerForm"; // assumes CustomerForm exports a MUI-styled form as done earlier
+
+export default function SaleForm({ onSaleAdded, initial = null }) {
   const api = useApi();
 
   const [customerId, setCustomerId] = useState("");
   const [customer, setCustomer] = useState("");
-  const [items, setItems] = useState([
-    { product: null, productId: "", quantity: 1, price: 0 }
-  ]);
+  const [items, setItems] = useState([{ product: null, productId: "", quantity: 1, price: 0 }]);
 
-  // new: discount + totals
   const [subTotal, setSubTotal] = useState(0);
   const [discount, setDiscount] = useState(0);
   const [total, setTotal] = useState(0);
@@ -20,10 +48,15 @@ function SaleForm({ onSaleAdded, initial = null }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
+  // Add Customer modal
+  const [customerModalOpen, setCustomerModalOpen] = useState(false);
+  const [creatingCustomer, setCreatingCustomer] = useState(false);
+
+  const isEditing = Boolean(initial?._id);
+
   // Prefill when editing
   useEffect(() => {
     if (!initial) {
-      // reset for create
       setCustomerId("");
       setCustomer("");
       setItems([{ product: null, productId: "", quantity: 1, price: 0 }]);
@@ -31,17 +64,13 @@ function SaleForm({ onSaleAdded, initial = null }) {
       return;
     }
 
-    // customerId can be string or populated object
     setCustomerId(
       typeof initial.customerId === "object" ? initial.customerId._id : (initial.customerId || "")
     );
     setCustomer(initial.customer || "");
 
     const mapped = (initial.items || []).map((it) => {
-      const productObj =
-        (typeof it.productId === "object" && it.productId) ||
-        it.product ||
-        null;
+      const productObj = (typeof it.productId === "object" && it.productId) || it.product || null;
       const pid =
         (typeof it.productId === "string" && it.productId) ||
         (typeof it.productId === "object" && it.productId?._id) ||
@@ -52,7 +81,7 @@ function SaleForm({ onSaleAdded, initial = null }) {
         product: productObj,
         productId: pid,
         quantity: Number(it.quantity || 0),
-        price: Number(it.price || 0)
+        price: Number(it.price || 0),
       };
     });
     setItems(mapped.length ? mapped : [{ product: null, productId: "", quantity: 1, price: 0 }]);
@@ -60,11 +89,10 @@ function SaleForm({ onSaleAdded, initial = null }) {
     setDiscount(Number(initial.discount || 0));
   }, [initial]);
 
-  // Recalculate subTotal and total
+  // Recalculate totals
   useEffect(() => {
     const st = items.reduce(
-      (acc, item) =>
-        acc + (Number(item.price) || 0) * (Number(item.quantity) || 0),
+      (acc, item) => acc + (Number(item.price) || 0) * (Number(item.quantity) || 0),
       0
     );
     setSubTotal(st);
@@ -72,7 +100,7 @@ function SaleForm({ onSaleAdded, initial = null }) {
     setTotal(Math.max(0, st - d));
   }, [items, discount]);
 
-  // Generic item update helper
+  // Helpers
   const updateItem = (index, patch) => {
     setItems((prev) => {
       const next = [...prev];
@@ -81,7 +109,6 @@ function SaleForm({ onSaleAdded, initial = null }) {
     });
   };
 
-  // Handle change in item fields
   const handleItemChange = (index, field, value) => {
     if (field === "quantity" || field === "price") {
       value = Number(value);
@@ -90,7 +117,6 @@ function SaleForm({ onSaleAdded, initial = null }) {
     updateItem(index, { [field]: value });
   };
 
-  // When a product is selected, auto-set productId and price
   const handleProductChange = (index, selectedProduct) => {
     if (!selectedProduct) {
       updateItem(index, { product: null, productId: "", price: 0 });
@@ -99,23 +125,17 @@ function SaleForm({ onSaleAdded, initial = null }) {
     updateItem(index, {
       product: selectedProduct,
       productId: selectedProduct._id,
-      price: Number(selectedProduct.price) || 0
+      price: Number(selectedProduct.price) || 0,
     });
   };
 
-  // Add/Remove item rows
   const addItem = () =>
-    setItems((prev) => [
-      ...prev,
-      { product: null, productId: "", quantity: 1, price: 0 }
-    ]);
+    setItems((prev) => [...prev, { product: null, productId: "", quantity: 1, price: 0 }]);
 
   const removeItem = (index) => {
     setItems((prev) => {
       const next = prev.filter((_, i) => i !== index);
-      return next.length
-        ? next
-        : [{ product: null, productId: "", quantity: 1, price: 0 }];
+      return next.length ? next : [{ product: null, productId: "", quantity: 1, price: 0 }];
     });
   };
 
@@ -126,16 +146,14 @@ function SaleForm({ onSaleAdded, initial = null }) {
     for (let i = 0; i < items.length; i++) {
       const it = items[i];
       if (!it.productId) return `Row ${i + 1}: Select a product.`;
-      if (!it.quantity || it.quantity <= 0)
-        return `Row ${i + 1}: Quantity must be > 0.`;
-      if (it.price == null || it.price < 0)
-        return `Row ${i + 1}: Price must be >= 0.`;
+      if (!it.quantity || it.quantity <= 0) return `Row ${i + 1}: Quantity must be > 0.`;
+      if (it.price == null || it.price < 0) return `Row ${i + 1}: Price must be >= 0.`;
     }
     if (total < 0) return "Total cannot be negative.";
     return "";
   };
 
-  // Submit (create or update)
+  // Submit
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -154,126 +172,248 @@ function SaleForm({ onSaleAdded, initial = null }) {
         items: items.map((it) => ({
           productId: it.productId,
           quantity: it.quantity,
-          price: it.price
+          price: it.price,
         })),
         subTotal,
         discount,
-        total
+        total,
       };
 
-      let res;
-      if (initial?._id) {
-        res = await api.put(`/sales/${initial._id}`, payload);
-      } else {
-        res = await api.post("/sales", payload);
-      }
+      const res = isEditing
+        ? await api.put(`/sales/${initial._id}`, payload)
+        : await api.post("/sales", payload);
 
       onSaleAdded?.(res.data);
 
-      // Reset only if creating; let parent close on edit
-      if (!initial?._id) {
+      if (!isEditing) {
         setCustomerId("");
         setCustomer("");
         setItems([{ product: null, productId: "", quantity: 1, price: 0 }]);
         setDiscount(0);
       }
     } catch (err) {
-      setError(
-        err?.response?.data?.error ||
-          (initial?._id ? "Failed to update sale" : "Failed to save sale")
-      );
+      setError(err?.response?.data?.error || (isEditing ? "Failed to update sale" : "Failed to save sale"));
     } finally {
       setSubmitting(false);
     }
   };
 
-  const isEditing = Boolean(initial?._id);
+  // Handle customer created in dialog
+  const handleCustomerSaved = (created) => {
+    setCustomerModalOpen(false);
+    // assume created has _id and name
+    if (created?._id) setCustomerId(created._id);
+    if (created?.name) setCustomer(created.name);
+  };
+
+  const inputSx = {
+    "& .MuiOutlinedInput-root": {
+      borderRadius: 2,
+      backgroundColor: "#fff",
+    },
+  };
 
   return (
-    <form onSubmit={handleSubmit}>
-      {error && (
-        <div style={{ color: "red", marginBottom: 8 }}>{error}</div>
-      )}
+    <Fade in timeout={300}>
+      <Paper
+        elevation={8}
+        sx={{
+          p: 3,
+          borderRadius: 3,
+          maxWidth: 1000,
+          mx: "auto",
+          background: "linear-gradient(to bottom, #ffffff, #f8f9fa)",
+          boxShadow: "0 8px 30px rgba(0,0,0,0.12)",
+          border: "1px solid #e0e0e0",
+          mt: 2,
+        }}
+      >
+        <Box sx={{ display: "flex", alignItems: "center", mb: 2.5 }}>
+          <ShoppingCartIcon color="primary" sx={{ mr: 1.5, fontSize: 28 }} />
+          <Typography variant="h6" sx={{ fontWeight: 600, color: "#2d3748" }}>
+            {isEditing ? "Edit Sale" : "New Sale"}
+          </Typography>
+        </Box>
 
-      <div style={{ marginBottom: 8 }}>
-        <label style={{ display: "block", marginBottom: 4 }}>Customer:</label>
-        <CustomerSelect value={customerId} onChange={setCustomerId} />
-      </div>
-
-      <hr />
-
-      <div>
-        <h4>{isEditing ? "Edit Items" : "Items"}</h4>
-        {items.map((item, index) => (
-          <div
-            key={index}
-            style={{
-              marginBottom: 10,
-              display: "flex",
-              gap: 8,
-              alignItems: "center",
-              flexWrap: "wrap"
+        {error && (
+          <Box
+            sx={{
+              mb: 2,
+              px: 2,
+              py: 1,
+              borderRadius: 1,
+              color: "#b91c1c",
+              bgcolor: "#fee2e2",
+              border: "1px solid #fecaca",
             }}
           >
-            <ProductSelect
-              value={item.product} // pass the whole product for controlled display
-              onChange={(prod) => handleProductChange(index, prod)}
-            />
-            <input
+            {error}
+          </Box>
+        )}
+
+        <Divider sx={{ mb: 2, bgcolor: "#e2e8f0" }} />
+
+        <Box component="form" onSubmit={handleSubmit}>
+          {/* Customer section */}
+          <Stack direction={{ xs: "column", sm: "row" }} spacing={2} alignItems="center" sx={{ mb: 2 }}>
+            <Box sx={{ flexGrow: 1 }}>
+              <Typography variant="subtitle2" sx={{ mb: 0.5, color: "text.secondary" }}>
+                Customer
+              </Typography>
+              <CustomerSelect value={customerId} onChange={setCustomerId} />
+            </Box>
+            <Button
+              variant="outlined"
+              startIcon={<PersonAddIcon />}
+              onClick={() => setCustomerModalOpen(true)}
+              sx={{ whiteSpace: "nowrap", borderRadius: 2, textTransform: "none", fontWeight: 600 }}
+            >
+              Add Customer
+            </Button>
+          </Stack>
+
+          <Divider sx={{ my: 2, bgcolor: "#e2e8f0" }} />
+
+          {/* Items header */}
+          <Box sx={{ display: "flex", alignItems: "center", mb: 1 }}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+              Items
+            </Typography>
+            <Button
+              onClick={addItem}
+              startIcon={<AddIcon />}
+              sx={{ ml: "auto", textTransform: "none", borderRadius: 2 }}
+            >
+              Add Item
+            </Button>
+          </Box>
+
+          {/* Items grid */}
+          <Grid container spacing={2}>
+            {items.map((item, index) => (
+              <React.Fragment key={index}>
+             
+                  <ProductSelect
+                    value={item.product}
+                    onChange={(prod) => handleProductChange(index, prod)}
+                  />
+             
+                <Grid item xs={6} md={3}>
+                  <TextField
+                    label="Quantity"
+                    type="number"
+                    value={item.quantity}
+                    onChange={(e) => handleItemChange(index, "quantity", e.target.value)}
+                    fullWidth
+                    size="medium"
+                    sx={inputSx}
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <FormatListNumberedIcon color="action" />
+                        </InputAdornment>
+                      ),
+                      inputProps: { min: 1 },
+                    }}
+                  />
+                </Grid>
+                <Grid item xs={6} md={3}>
+                  <TextField
+                    label="Price"
+                    type="number"
+                    value={item.price}
+                    onChange={(e) => handleItemChange(index, "price", e.target.value)}
+                    fullWidth
+                    size="medium"
+                    sx={inputSx}
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <CurrencyRupeeIcon color="action" />
+                        </InputAdornment>
+                      ),
+                      inputProps: { min: 0, step: 0.01 },
+                    }}
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <IconButton color="error" onClick={() => removeItem(index)} size="small">
+                    <RemoveCircleOutlineIcon />
+                  </IconButton>
+                </Grid>
+              </React.Fragment>
+            ))}
+          </Grid>
+
+          <Divider sx={{ my: 2, bgcolor: "#e2e8f0" }} />
+
+          {/* Totals */}
+          <Stack direction={{ xs: "column", sm: "row" }} spacing={2} alignItems="center">
+            <Typography variant="body1">Subtotal: ₹{subTotal.toFixed(2)}</Typography>
+            <TextField
+              label="Discount"
               type="number"
-              placeholder="Quantity"
-              value={item.quantity}
-              min="1"
-              onChange={(e) =>
-                handleItemChange(index, "quantity", e.target.value)
-              }
-              style={{ width: 100 }}
+              value={discount}
+              onChange={(e) => setDiscount(Number(e.target.value) || 0)}
+              size="medium"
+              sx={{ ...inputSx, width: { xs: "100%", sm: 180 } }}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <PercentIcon color="action" />
+                  </InputAdornment>
+                ),
+                inputProps: { min: 0, step: 0.01 },
+              }}
             />
-            <input
-              type="number"
-              placeholder="Price"
-              value={item.price}
-              min="0"
-              step="0.01"
-              onChange={(e) =>
-                handleItemChange(index, "price", e.target.value)
-              }
-              style={{ width: 120 }}
+            <Typography variant="h6" sx={{ ml: { sm: "auto" } }}>
+              Total: ₹{total.toFixed(2)}
+            </Typography>
+          </Stack>
+
+          {/* Actions */}
+          <Box sx={{ mt: 3, display: "flex", justifyContent: "flex-end", gap: 2, pt: 2, borderTop: "1px solid #e2e8f0" }}>
+            <Button
+              type="button"
+              variant="outlined"
+              color="inherit"
+              onClick={() => window.history.back()}
+              disabled={submitting}
+              sx={{ borderRadius: 2, px: 3, textTransform: "none", fontWeight: 600 }}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              variant="contained"
+              disabled={submitting}
+              startIcon={submitting ? <CircularProgress size={16} color="inherit" /> : null}
+              sx={{ borderRadius: 2, px: 3, textTransform: "none", fontWeight: 600, boxShadow: "0 4px 12px rgba(25,118,210,0.3)" }}
+            >
+              {submitting ? (isEditing ? "Updating..." : "Saving...") : (isEditing ? "Update Sale" : "Save Sale")}
+            </Button>
+          </Box>
+        </Box>
+
+        {/* Add Customer Dialog */}
+        <Dialog
+          open={customerModalOpen}
+          onClose={() => setCustomerModalOpen(false)}
+          fullWidth
+          maxWidth="md"
+        >
+          <DialogTitle>Add Customer</DialogTitle>
+          <DialogContent dividers>
+            <CustomerForm
+              onSaved={(c) => handleCustomerSaved(c)}
+              onCancel={() => setCustomerModalOpen(false)}
             />
-            <button type="button" onClick={() => removeItem(index)}>
-              Remove
-            </button>
-          </div>
-        ))}
-        <button type="button" onClick={addItem}>
-          + Add Item
-        </button>
-      </div>
-
-      <hr />
-
-      {/* Totals */}
-      <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-        <div>Subtotal: ₹{subTotal.toFixed(2)}</div>
-        <div>
-          Discount:{" "}
-          <input
-            type="number"
-            min="0"
-            step="0.01"
-            value={discount}
-            onChange={(e) => setDiscount(Number(e.target.value) || 0)}
-            style={{ width: 120 }}
-          />
-        </div>
-        <strong>Total: ₹{total.toFixed(2)}</strong>
-      </div>
-
-      <button type="submit" style={{ marginTop: 15 }} disabled={submitting}>
-        {submitting ? (isEditing ? "Updating..." : "Saving...") : (isEditing ? "Update Sale" : "Save Sale")}
-      </button>
-    </form>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setCustomerModalOpen(false)}>Close</Button>
+          </DialogActions>
+        </Dialog>
+      </Paper>
+    </Fade>
   );
 }
-
-export default SaleForm;
