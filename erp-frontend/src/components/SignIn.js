@@ -155,11 +155,11 @@ export default function SignIn(props) {
             <Typography sx={{ textAlign: 'center' }}>
               Don&apos;t have an account?{' '}
               <Link
-                href="/material-ui/getting-started/templates/sign-in/"
                 variant="body2"
+                onClick={handleGoogleSignIn}
                 sx={{ alignSelf: 'center' }}
               >
-                Sign up
+                Sign up with Google
               </Link>
             </Typography>
           </Box>
